@@ -24,3 +24,10 @@
  5. **Додатна кількість приходу (`amount > 0`)**: під час реєстрації надходження товару кількість має бути строго більшою за нуль (`ArgumentOutOfRangeException`, метод `RegisterArrival`).
  6. **Додатна кількість видачі (`amount > 0`)**: під час списання або відпуску кількість має бути строго більшою за нуль (`ArgumentOutOfRangeException`, метод `Issue`).
  7. **Неможливість від'ємного залишку (`amount <= _quantity`)**: операція видачі не може списати більше одиниць, ніж фактично є в наявності; захищає сутність від переходу в дефіцитний стан (`InvalidOperationException`, метод `Issue`).
+ ## Архітектурні компоненти
+* **Інтерфейс сховища:** `ICatalogStore` (простір імен `Core.Abstractions`) — визначає контракт доступу до даних (`List`, `GetById`, `Add`, `Update`, `Remove`, `Find`).
+* **Реалізації сховища:**
+  * `InMemoryCatalogStore` (`Core.Storage`) — сховище в оперативній пам'яті на базі `Dictionary<string, Product>` із підтримкою початкових даних (`SampleData`).
+  * `FileCatalogStore` (`Core.Storage`) — файлове сховище у форматі JSON (`data/catalog.json`) із кешуванням у пам'яті та синхронізацією стану (`Flush`).
+  * `CachingCatalogStore` (`Core.Storage`) *(додаткове завдання)* — декоратор над `ICatalogStore`, що додає рівень кешування для прискорення читання.
+* **Сервісний шар:** `CatalogService` (`Core.Services`) — інкапсулює прикладні бізнес-операції (`Add`, `Receive`, `Issue`, `Search`, `All`, `Find`) і залежить виключно від абстракції `ICatalogStore`.
