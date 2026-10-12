@@ -31,3 +31,12 @@
   * `FileCatalogStore` (`Core.Storage`) — файлове сховище у форматі JSON (`data/catalog.json`) із кешуванням у пам'яті та синхронізацією стану (`Flush`).
   * `CachingCatalogStore` (`Core.Storage`) *(додаткове завдання)* — декоратор над `ICatalogStore`, що додає рівень кешування для прискорення читання.
 * **Сервісний шар:** `CatalogService` (`Core.Services`) — інкапсулює прикладні бізнес-операції (`Add`, `Receive`, `Issue`, `Search`, `All`, `Find`) і залежить виключно від абстракції `ICatalogStore`.
+## Нові компоненти домену та сервісу
+* **`CatalogChangeKind`** (`Core.Events`) — перелічування типів подій (`Added`, `Received`, `Issued`, `Removed`).
+* **`CatalogChangedEventArgs`** (`Core.Events`) — клас аргументів події (наслідує `EventArgs`), що зберігає незмінні дані про зміну стану (`Id`, `Kind`, `Delta`, `QuantityAfter`, `At`).
+* **`CatalogService.Changed`** (`Core.Services`) — подія типу `event EventHandler<CatalogChangedEventArgs>`, що викликається через безпечний метод `OnChanged` (`Changed?.Invoke(...)`) суворо після успішної зміни стану та проходження всіх доменних інваріантів.
+* **`CatalogService.FindAll(Func<Product, bool>)`** (`Core.Services`) — метод предикатного пошуку, що приймає делегат `Func` для фільтрації колекції без прив'язки до конкретних критеріїв.
+
+## Підписки та логування у CLI
+* **Перший підписник (локальний метод `OnCatalogChanged`):** здійснює форматований вивід операції в консоль та дозапис у файл `logs/app.log`. Демонструє можливість керованої відписки за допомогою оператора `-=`.
+* **Другий підписник (анонімна лямбда):** здійснює підрахунок кількості подій через замикання над локальною змінною `changes`.
