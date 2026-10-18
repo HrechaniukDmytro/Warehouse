@@ -20,6 +20,9 @@ public static class SampleData
         Product.Create("P-012", "SKU-012", "Стрічка армуюча", "м", 450),
         Product.Create("P-013", "SKU-013", "Утеплювач мінвата", "рул", 75),
         Product.Create("P-014", "SKU-014", "Дюбель 6х40", "уп", 300),
-        Product.Create("P-015", "SKU-015", "Піна монтажна 750мл", "шт", 85)
+        Product.Create("P-015", "SKU-015", "Піна монтажна 750мл", "шт", 85),
+        Product.Create("P-016", "SKU-016", "Лак паркетний 2.5л", "л", 4),
+        Product.Create("P-017", "SKU-017", "Мастилка силіконова", "шт", 2),
+        Product.Create("P-018", "SKU-018", "Алебастр 5кг", "кг", 8)
     ];
 }
