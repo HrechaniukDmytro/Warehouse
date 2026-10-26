@@ -1,4 +1,3 @@
-using System.Text.Encodings.Web;
 using System.Text.Json;
 using Core.Abstractions;
 using Core.Domain;
@@ -6,90 +5,135 @@ using Core.Dto;
 
 namespace Core.Storage;
 
-public sealed class FileCatalogStore(string path) : ICatalogStore
+public sealed class FileCatalogStore : ICatalogStore
 {
-    private static readonly JsonSerializerOptions Options = new()
-    {
-        WriteIndented = true,
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping 
-    };
-
-    private readonly Dictionary<string, Product> _cache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly string _path = Path.GetFullPath(path);
+    private readonly string _path;
+    private readonly List<Product> _items = new();
     private bool _loaded;
+
+    public FileCatalogStore(string path)
+    {
+        _path = path;
+    }
 
     private void EnsureLoaded()
     {
         if (_loaded) return;
 
-        if (File.Exists(_path))
+        if (!File.Exists(_path))
         {
-            string json = File.ReadAllText(_path);
-            var dtos = JsonSerializer.Deserialize<List<ProductDto>>(json) ?? [];
-            foreach (var dto in dtos)
+            _items.Clear();
+            _loaded = true;
+            return;
+        }
+
+        try
+        {
+            var json = File.ReadAllText(_path);
+            if (string.IsNullOrWhiteSpace(json))
             {
-                var p = Product.FromDto(dto);
-                _cache[p.Id] = p;
+                _items.Clear();
+                _loaded = true;
+                return;
             }
+
+            var options = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            };
+
+            var dtos = JsonSerializer.Deserialize<List<ProductDto>>(json, options);
+            _items.Clear();
+
+            if (dtos != null)
+            {
+                foreach (var dto in dtos)
+                {
+                    if (dto != null)
+                    {
+                        var product = Product.FromDto(dto);
+                        _items.Add(product);
+                    }
+                }
+            }
+
+            _loaded = true;
         }
-
-        _loaded = true;
-    }
-
-    private void Flush()
-    {
-        string? dir = Path.GetDirectoryName(_path);
-        if (!string.IsNullOrEmpty(dir))
+        catch (Exception)
         {
-            Directory.CreateDirectory(dir);
+            _items.Clear();
+            _loaded = true;
         }
-
-        var dtos = _cache.Values.Select(p => p.ToDto()).ToList();
-        File.WriteAllText(_path, JsonSerializer.Serialize(dtos, Options));
     }
 
-    public IReadOnlyList<Product> List()
+    public void Add(Product product)
     {
         EnsureLoaded();
-        return _cache.Values.ToList();
+        ArgumentNullException.ThrowIfNull(product);
+
+        if (GetById(product.Id) is not null)
+            throw new InvalidOperationException($"Товар з ID {product.Id} вже існує.");
+
+        _items.Add(product);
+        Save();
     }
 
-    public Product? GetById(string id)
+    public void Update(Product product)
     {
         EnsureLoaded();
-        return _cache.GetValueOrDefault(id);
-    }
+        ArgumentNullException.ThrowIfNull(product);
 
-    public void Add(Product item)
-    {
-        ArgumentNullException.ThrowIfNull(item);
-        EnsureLoaded();
+        var index = _items.FindIndex(p => p.Id == product.Id);
+        if (index < 0)
+            throw new KeyNotFoundException($"Товар з ID {product.Id} не знайдено.");
 
-        if (_cache.ContainsKey(item.Id))
-            throw new InvalidOperationException($"Запис з id={item.Id} уже існує.");
-
-        _cache.Add(item.Id, item);
-        Flush();
-    }
-
-    public void Update(Product item)
-    {
-        ArgumentNullException.ThrowIfNull(item);
-        EnsureLoaded();
-
-        if (!_cache.ContainsKey(item.Id))
-            throw new InvalidOperationException($"Запис з id={item.Id} не знайдено для оновлення.");
-
-        _cache[item.Id] = item;
-        Flush();
+        _items[index] = product;
+        Save();
     }
 
     public bool Remove(string id)
     {
         EnsureLoaded();
-        if (!_cache.Remove(id)) return false;
+        var index = _items.FindIndex(p => p.Id == id);
+        if (index < 0) return false;
 
-        Flush();
+        _items.RemoveAt(index);
+        Save();
         return true;
+    }
+
+    public Product? GetById(string id)
+    {
+        EnsureLoaded();
+        return _items.FirstOrDefault(p => p.Id == id);
+    }
+
+    public IReadOnlyList<Product> All()
+    {
+        EnsureLoaded();
+        return _items.AsReadOnly();
+    }
+
+    private void Save()
+    {
+        var directory = Path.GetDirectoryName(_path);
+        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        var dtos = _items.Select(p => p.ToDto()).ToList();
+        var json = JsonSerializer.Serialize(dtos, new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(_path, json);
+    }
+
+    public IReadOnlyList<Product> List()
+    {
+        throw new NotImplementedException();
+    }
+
+    public IReadOnlyList<Product> Find(Func<Product, bool> predicate)
+    {
+        throw new NotImplementedException();
     }
 }

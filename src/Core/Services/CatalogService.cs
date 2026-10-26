@@ -26,7 +26,7 @@ public sealed class CatalogService(ICatalogStore store)
     public void Receive(string id, int quantity)
     {
         var product = _store.GetById(id)
-            ?? throw new InvalidOperationException($"Немає запису з id={id}.");
+            ?? throw new DomainException($"Немає запису з id={id}.");
 
         product.RegisterArrival(quantity);
         _store.Update(product);
@@ -37,7 +37,7 @@ public sealed class CatalogService(ICatalogStore store)
     public void Issue(string id, int quantity)
     {
         var product = _store.GetById(id)
-            ?? throw new InvalidOperationException($"Немає запису з id={id}.");
+            ?? throw new DomainException($"Немає запису з id={id}.");
 
         product.Issue(quantity);
         _store.Update(product);
@@ -50,5 +50,27 @@ public sealed class CatalogService(ICatalogStore store)
     public Product? Find(string id) => _store.GetById(id);
 
     public IReadOnlyList<Product> FindAll(Func<Product, bool> predicate) =>
-        _store.List().Where(predicate).ToList();
+        _store.Find(predicate);
+
+    public async Task<int> ImportAsync(ICatalogImporter importer, string path, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(importer);
+
+        var items = await importer.LoadAsync(path, ct);
+        var added = 0;
+
+        foreach (var item in items)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            if (_store.GetById(item.Id) is not null)
+                continue;
+
+            _store.Add(item);
+            OnChanged(item, CatalogChangeKind.Added, item.Quantity);
+            added++;
+        }
+
+        return added;
+    }
 }
