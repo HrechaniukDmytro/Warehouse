@@ -1,3 +1,4 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using Core.Abstractions;
 using Core.Domain;
@@ -11,8 +12,16 @@ public sealed class FileCatalogStore : ICatalogStore
     private readonly List<Product> _items = new();
     private bool _loaded;
 
+    private static readonly JsonSerializerOptions Options = new()
+    {
+        WriteIndented = true,
+        PropertyNameCaseInsensitive = true,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
+
     public FileCatalogStore(string path)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
         _path = path;
     }
 
@@ -37,32 +46,26 @@ public sealed class FileCatalogStore : ICatalogStore
                 return;
             }
 
-            var options = new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            };
-
-            var dtos = JsonSerializer.Deserialize<List<ProductDto>>(json, options);
+            var dtos = JsonSerializer.Deserialize<List<ProductDto>>(json, Options);
             _items.Clear();
 
             if (dtos != null)
             {
                 foreach (var dto in dtos)
                 {
-                    if (dto != null)
-                    {
-                        var product = Product.FromDto(dto);
-                        _items.Add(product);
-                    }
+                    if (dto is null || string.IsNullOrWhiteSpace(dto.Id))
+                        continue;
+
+                    var product = Product.FromDto(dto);
+                    _items.Add(product);
                 }
             }
 
             _loaded = true;
         }
-        catch (Exception)
+        catch (JsonException ex)
         {
-            _items.Clear();
-            _loaded = true;
+            throw new DomainException($"Файл за шляхом {_path} містить некоректний JSON.", ex);
         }
     }
 
@@ -72,7 +75,7 @@ public sealed class FileCatalogStore : ICatalogStore
         ArgumentNullException.ThrowIfNull(product);
 
         if (GetById(product.Id) is not null)
-            throw new InvalidOperationException($"Товар з ID {product.Id} вже існує.");
+            throw new DomainException($"Товар з ID {product.Id} вже існує.");
 
         _items.Add(product);
         Save();
@@ -85,7 +88,7 @@ public sealed class FileCatalogStore : ICatalogStore
 
         var index = _items.FindIndex(p => p.Id == product.Id);
         if (index < 0)
-            throw new KeyNotFoundException($"Товар з ID {product.Id} не знайдено.");
+            throw new DomainException($"Товар з ID {product.Id} не знайдено.");
 
         _items[index] = product;
         Save();
@@ -108,10 +111,17 @@ public sealed class FileCatalogStore : ICatalogStore
         return _items.FirstOrDefault(p => p.Id == id);
     }
 
-    public IReadOnlyList<Product> All()
+    public IReadOnlyList<Product> List()
     {
         EnsureLoaded();
         return _items.AsReadOnly();
+    }
+
+    public IReadOnlyList<Product> Find(Func<Product, bool> predicate)
+    {
+        ArgumentNullException.ThrowIfNull(predicate);
+        EnsureLoaded();
+        return _items.Where(predicate).ToList().AsReadOnly();
     }
 
     private void Save()
@@ -123,17 +133,10 @@ public sealed class FileCatalogStore : ICatalogStore
         }
 
         var dtos = _items.Select(p => p.ToDto()).ToList();
-        var json = JsonSerializer.Serialize(dtos, new JsonSerializerOptions { WriteIndented = true });
-        File.WriteAllText(_path, json);
-    }
+        var tmpPath = _path + ".tmp";
 
-    public IReadOnlyList<Product> List()
-    {
-        throw new NotImplementedException();
-    }
-
-    public IReadOnlyList<Product> Find(Func<Product, bool> predicate)
-    {
-        throw new NotImplementedException();
+        // Атомарний запис через .tmp
+        File.WriteAllText(tmpPath, JsonSerializer.Serialize(dtos, Options));
+        File.Move(tmpPath, _path, overwrite: true);
     }
 }

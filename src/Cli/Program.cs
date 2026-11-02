@@ -1,42 +1,71 @@
-using Core;
-using Core.Abstractions;
+using System.Reflection;
+using Core.Configuration;
 using Core.Domain;
-using Core.Reports;
 using Core.Services;
 using Core.Storage;
+using Microsoft.Extensions.Configuration;
+
+var envName = Environment.GetEnvironmentVariable("CROSSAPP_ENVIRONMENT") ?? "Development";
+
+var config = new ConfigurationBuilder()
+    .SetBasePath(AppContext.BaseDirectory)
+    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
+    .AddJsonFile($"appsettings.{envName}.json", optional: true)
+    .AddUserSecrets(Assembly.GetExecutingAssembly(), optional: true)
+    .AddEnvironmentVariables(prefix: "CROSSAPP_")
+    .AddCommandLine(args)
+    .Build();
+
+var options = config.Get<AppOptions>() ?? new AppOptions();
+
+var legacyDataPath = Environment.GetEnvironmentVariable("CROSSAPP_DATA_PATH");
+var storageOptions = new StorageOptions
+{
+    DataPath = !string.IsNullOrWhiteSpace(legacyDataPath) ? legacyDataPath : options.Storage.DataPath,
+    FileName = options.Storage.FileName
+};
+
+var fullPath = storageOptions.ResolveFullPath(AppContext.BaseDirectory);
+var apiKey = config["Integration:ApiKey"];
+
+var store = new FileCatalogStore(fullPath);
+var service = new CatalogService(store);
 
 using var cts = new CancellationTokenSource();
 Console.CancelKeyPress += (_, e) =>
 {
-    Console.WriteLine("\nОтримано сигнал скасування (Ctrl+C)...");
     e.Cancel = true;
     cts.Cancel();
 };
 
-bool useFile = args.Contains("--file");
-string dataPath = Path.Combine(AppContext.BaseDirectory, "data", "catalog.json");
-
-ICatalogStore store = useFile
-    ? new FileCatalogStore(Path.Combine(AppContext.BaseDirectory, "data", "store.json"))
-    : new InMemoryCatalogStore();
-
-var service = new CatalogService(store);
+var command = args.Length > 0 ? args[0] : "export";
 
 try
 {
-    Console.WriteLine("АСИНХРОННИЙ ІМПОРТ ДАНИХ");
-    var added = await service.ImportAsync(new JsonCatalogImporter(), dataPath, cts.Token);
-    Console.WriteLine($"Імпортовано записів: {added}");
+    switch (command.ToLowerInvariant())
+    {
+        case "export":
+            Console.WriteLine($"Файл даних : {fullPath}");
+
+            Console.WriteLine(apiKey is null 
+                ? "ApiKey: не заданий" 
+                : $"ApiKey: присутній, довжина {apiKey.Length}");
+
+            var items = store.List();
+
+            Console.WriteLine($"Експортовано {items.Count} записи.");
+            break;
+
+        default:
+            Console.WriteLine($"Невідома команда: {command}");
+            break;
+    }
 }
 catch (OperationCanceledException)
 {
-    Console.WriteLine("Імпорт скасовано.");
+    Console.WriteLine("Операцію скасовано.");
 }
-catch (DomainException ex)
+catch (Exception ex)
 {
-    Console.WriteLine($"Дані відхилено: {ex.Message}");
-}
-catch (FileNotFoundException ex)
-{
-    Console.WriteLine($"Файл не знайдено: {ex.FileName}");
+    Console.WriteLine($"[Помилка]: {ex.Message}");
 }

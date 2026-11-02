@@ -70,3 +70,53 @@ dotnet test
 `--file` зберігає каталог у `data/store.json` поруч із виконуваним CLI; файл із 17 записами для імпорту залишається окремим і не перезаписується сховищем. Повторний імпорт ідемпотентний: уже наявні ідентифікатори пропускаються.
 
 Тести використовують `InMemoryCatalogStore`; тимчасовий JSON-файл створюється лише для перевірки відхилення некоректних доменних даних і видаляється у `finally`. `ArgumentException` означає некоректний аргумент, наприклад від'ємну кількість приходу; `DomainException` — порушення бізнес-правила або некоректні дані імпорту, наприклад спробу видати більше товару, ніж є в залишку. Технічні помилки JSON та файлової системи не маскуються під доменні.
+
+# Лабораторна робота 9: Шляхи, JSON, конфігурація, Secrets
+
+## 1. Профілі конфігурації (Environment Profiles)
+
+Додаток підтримує розділення налаштувань за середовищами виконання (`CROSSAPP_ENVIRONMENT`):
+
+* **Development (`appsettings.Development.json`)**:
+  * `Logging:MinimumLevel`: `Debug` (деталізоване логування).
+  * Використовується за замовчуванням при локальній розробці.
+* **Production (`appsettings.json`)**:
+  * `Logging:MinimumLevel`: `Warning` (логування лише важливих подій та помилок).
+  * Основне базове середовище.
+
+---
+
+## 2. Таблиця ключів конфігурації
+
+| Ключ конфігурації | Опис | Значення за замовчуванням | Джерело за замовчуванням |
+| :--- | :--- | :--- | :--- |
+| `EnvironmentName` | Назва поточного середовища | `Development` | `appsettings.json` / `appsettings.Development.json` |
+| `Logging:MinimumLevel` | Мінімальний рівень логування | `Information` / `Debug` | `appsettings.json` / `appsettings.Development.json` |
+| `Storage:DataPath` | Відносна папка для збереження даних | `data` | `appsettings.json` |
+| `Storage:FileName` | Назва файлу бази даних JSON | `store.json` | `appsettings.json` |
+| `Integration:ApiKey` | Секретний ключ інтеграції | — | `UserSecrets` / Змінні середовища |
+
+---
+
+## 3. Перевизначення конфігурації через змінні середовища
+
+Усі ключі з конфігурації можна перевизначити через змінні середовища з префіксом `CROSSAPP_`. Вкладені двоеточки (`:`) замінюються на подвійне підкреслення (`__`).
+
+### PowerShell (Windows)
+```powershell
+# Зміна середовища виконання
+$env:CROSSAPP_ENVIRONMENT = "Production"
+
+# Перевизначення шляху до даних (CROSSAPP_DATA_PATH)
+$env:CROSSAPP_DATA_PATH = "custom_data"
+
+# Перевизначення секрету ApiKey (Integration:ApiKey -> CROSSAPP_Integration__ApiKey)
+$env:CROSSAPP_Integration__ApiKey = "secret-key-from-powershell"
+
+# Запуск проєкту
+dotnet run --project src/Cli -- export
+
+# Очищення змінних середовища після перевірки
+Remove-Item Env:\CROSSAPP_ENVIRONMENT
+Remove-Item Env:\CROSSAPP_DATA_PATH
+Remove-Item Env:\CROSSAPP_Integration__ApiKey
