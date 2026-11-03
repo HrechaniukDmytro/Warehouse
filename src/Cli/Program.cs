@@ -46,24 +46,49 @@ try
     {
         case "export":
             Console.WriteLine($"Файл даних : {fullPath}");
-
             Console.WriteLine(apiKey is null 
                 ? "ApiKey: не заданий" 
                 : $"ApiKey: присутній, довжина {apiKey.Length}");
 
             var items = store.List();
+            Console.WriteLine($"Експортовано {items.Count} записів.");
+            break;
 
-            Console.WriteLine($"Експортовано {items.Count} записи.");
+        case "import":
+        case "--file":
+            Console.WriteLine($"Файл даних : {fullPath}");
+            
+            var inputFilePath = args.Length > 1 
+                ? args[1] 
+                : Path.Combine(AppContext.BaseDirectory, "data", "catalog.json");
+
+            if (!File.Exists(inputFilePath))
+            {
+                inputFilePath = Path.Combine(Directory.GetCurrentDirectory(), "data", "catalog.json");
+            }
+
+            if (!File.Exists(inputFilePath))
+            {
+                Console.WriteLine($"[Помилка]: Вхідний файл для імпорту не знайдено зa шляхом: {inputFilePath}");
+                break;
+            }
+
+            var importer = new JsonCatalogImporter();
+            Console.WriteLine($"АСИНХРОННИЙ ІМПОРТ ДАНИХ з {Path.GetFileName(inputFilePath)}");
+            
+            var importedCount = await service.ImportAsync(importer, inputFilePath, cts.Token);
+            Console.WriteLine($"Успішно імпортовано {importedCount} нових записів у сховище.");
             break;
 
         default:
             Console.WriteLine($"Невідома команда: {command}");
+            Console.WriteLine("Доступні команди: export, import");
             break;
     }
 }
 catch (OperationCanceledException)
 {
-    Console.WriteLine("Операцію скасовано.");
+    Console.WriteLine("Операцію імпорту/експорту скасовано.");
 }
 catch (Exception ex)
 {

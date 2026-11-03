@@ -113,8 +113,15 @@ $env:CROSSAPP_DATA_PATH = "custom_data"
 # Перевизначення секрету ApiKey (Integration:ApiKey -> CROSSAPP_Integration__ApiKey)
 $env:CROSSAPP_Integration__ApiKey = "secret-key-from-powershell"
 
-# Запуск проєкту
+# Команди для перевірки роботи
+dotnet run --project src/Cli -- import
 dotnet run --project src/Cli -- export
+git grep "C://" src/
+git grep -i "secret" src/
+set CROSSAPP_DATA_PATH=C:\custom_data
+dotnet user-secrets list --project src/Cli
+set CROSSAPP_DATA_PATH=
+dotnet run --project КПП\Warehouse\src\Cli export
 
 # Очищення змінних середовища після перевірки
 Remove-Item Env:\CROSSAPP_ENVIRONMENT
