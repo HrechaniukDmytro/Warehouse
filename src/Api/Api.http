@@ -1,0 +1,54 @@
+@hostname = localhost
+@port = 5080
+@baseUrl = http://{{hostname}}:{{port}}
+
+### 1. Перевірка здоров'я API
+GET {{baseUrl}}/health
+
+### 2. Отримати всі товари
+GET {{baseUrl}}/api/products
+
+### 3. Створити новий товар (POST)
+POST {{baseUrl}}/api/products
+Content-Type: application/json
+
+{
+  "sku": "A-100",
+  "name": "Цемент М400",
+  "unit": "мішок",
+  "quantity": 40
+}
+
+### 4. Некоректний запит для перевірки 400 ValidationProblem
+POST {{baseUrl}}/api/products
+Content-Type: application/json
+
+{
+  "sku": "",
+  "name": "X",
+  "unit": "",
+  "quantity": -1
+}
+
+### 5. Отримати товар за ID (замініть {id} на реальний з відгуку POST)
+GET {{baseUrl}}/api/products/8f1c0e2a
+
+### 6. Отримати товари з малою кількістю на складі (low-stock)
+GET {{baseUrl}}/api/products/low-stock?threshold=10
+
+### 7. Оновити товар за ID (PUT)
+PUT {{baseUrl}}/api/products/8f1c0e2a
+Content-Type: application/json
+
+{
+  "sku": "A-100-UPD",
+  "name": "Цемент М400 Оновлений",
+  "unit": "мішок",
+  "quantity": 50
+}
+
+### 8. Видалити товар за ID (DELETE)
+DELETE {{baseUrl}}/api/products/8f1c0e2a
+
+### 9. Перевірити 404 після видалення
+GET {{baseUrl}}/api/products/8f1c0e2a

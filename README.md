@@ -127,3 +127,18 @@ dotnet run --project КПП\Warehouse\src\Cli export
 Remove-Item Env:\CROSSAPP_ENVIRONMENT
 Remove-Item Env:\CROSSAPP_DATA_PATH
 Remove-Item Env:\CROSSAPP_Integration__ApiKey
+
+## Лабораторна робота 10: Minimal API
+
+### Запуск Web API (порт 5080)
+
+dotnet run --project src/Api
+curl -i http://localhost:5080/api/products
+curl -i -X POST http://localhost:5080/api/products -H "Content-Type: application/json" -d "{\"sku\":\"A-100\",\"name\":\"Цемент М400\",\"unit\":\"мішок\",\"quantity\":40}"
+curl -i -X POST http://localhost:5080/api/products -H "Content-Type: application/json" -d "{\"sku\":\"\",\"name\":\"X\",\"unit\":\"\",\"quantity\":-1}"
+curl -i http://localhost:5080/api/products/1d000419
+curl -i "http://localhost:5080/api/products/low-stock?threshold=10"
+curl -i -X PUT http://localhost:5080/api/products/1d000419 -H "Content-Type: application/json" -d "{\"sku\":\"A-100-UPD\",\"name\":\"Цемент М400 Оновлений\",\"unit\":\"мішок\",\"quantity\":50}"
+curl -i -X DELETE http://localhost:5080/api/products/1d000419
+curl -i http://localhost:5080/api/products/1d000419
+http://localhost:5080/scalar/v1
