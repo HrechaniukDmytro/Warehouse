@@ -142,3 +142,4 @@ curl -i -X PUT http://localhost:5080/api/products/1d000419 -H "Content-Type: app
 curl -i -X DELETE http://localhost:5080/api/products/1d000419
 curl -i http://localhost:5080/api/products/1d000419
 http://localhost:5080/scalar/v1
+curl -i http://localhost:5080/api/products?page=1&pageSize=2&search=цемент
