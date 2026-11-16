@@ -143,3 +143,13 @@ curl -i -X DELETE http://localhost:5080/api/products/1d000419
 curl -i http://localhost:5080/api/products/1d000419
 http://localhost:5080/scalar/v1
 curl -i http://localhost:5080/api/products?page=1&pageSize=2&search=цемент
+
+
+## Лабораторна робота 11
+
+dotnet ef migrations list --project src/Infrastructure --startup-project src/Api
+del src\Api\data\app.db* 2>nul
+dotnet ef database update --project src/Infrastructure --startup-project src/Api
+
+dotnet run --project src/Api
+curl -i -X POST http://localhost:5080/api/products -H "Content-Type: application/json" -d "{\"sku\":\"A-100\",\"name\":\"Цемент М400\",\"unit\":\"мішок\",\"quantity\":40}"
