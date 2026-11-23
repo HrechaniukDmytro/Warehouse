@@ -1,0 +1,158 @@
+@page "/products"
+@rendermode InteractiveServer
+@implements IDisposable
+@inject ProductsApiClient Api
+@inject IJSRuntime JS
+
+<PageTitle>Склад — Товари</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3>Товари на складі</h3>
+    <a class="btn btn-primary" href="/products/new">+ Додати товар</a>
+</div>
+
+<!-- Панель пошуку, сортування та порогу залишку -->
+<div class="row g-2 mb-3">
+    <div class="col-md-5">
+        <input type="text"
+               class="form-control"
+               placeholder="Пошук за назвою або SKU..."
+               value="@searchTerm"
+               @oninput="OnSearchChanged" />
+    </div>
+    <div class="col-md-4">
+        <select class="form-select" value="@sortBy" @onchange="OnSortChanged">
+            <option value="sku">Сортувати: за артикулом (А-Я)</option>
+            <option value="name">Сортувати: за назвою (А-Я)</option>
+            <option value="quantity">Сортувати: залишок (спочатку менше)</option>
+            <option value="quantity_desc">Сортувати: залишок (спочатку більше)</option>
+        </select>
+    </div>
+    <div class="col-md-3">
+        <div class="input-group">
+            <span class="input-group-text">Поріг залишку:</span>
+            <input type="number" class="form-control" @bind="lowStockThreshold" @bind:event="oninput" min="0" />
+        </div>
+    </div>
+</div>
+
+@if (error is not null)
+{
+    <div class="alert alert-danger">@error</div>
+}
+else if (items is null)
+{
+    <p><em>Завантаження даних зі складу...</em></p>
+}
+else if (items.Count == 0)
+{
+    <div class="alert alert-info">Записів не знайдено.</div>
+}
+else
+{
+    <table class="table table-hover align-middle">
+        <thead>
+            <tr>
+                <th>Артикул (SKU)</th>
+                <th>Назва</th>
+                <th>Кількість</th>
+                <th>Од. виміру</th>
+                <th class="text-end">Дії</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in items)
+            {
+                <tr class="@(item.Quantity <= lowStockThreshold ? "table-warning" : "")">
+                    <td><code>@item.Sku</code></td>
+                    <td>
+                        @item.Name
+                        @if (item.Quantity <= lowStockThreshold)
+                        {
+                            <span class="badge bg-warning text-dark ms-2">Малий залишок</span>
+                        }
+                    </td>
+                    <td><strong>@item.Quantity</strong></td>
+                    <td>@item.Unit</td>
+                    <td class="text-end">
+                        <a class="btn btn-sm btn-outline-secondary me-1" href="@($"/products/{item.Id}")">Редагувати</a>
+                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteWithConfirmAsync(item)">
+                            Видалити
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<ProductModel>? items;
+    private string? error;
+    private string searchTerm = "";
+    private string sortBy = "sku";
+    private int lowStockThreshold = 5;
+
+    private CancellationTokenSource? _cts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+        var token = _cts.Token;
+
+        error = null;
+        try
+        {
+            items = await Api.ListAsync(searchTerm, sortBy, token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Запит скасовано при переході або новому вводі пошуку
+        }
+        catch (HttpRequestException)
+        {
+            error = "API недоступний. Перевірте, чи запущено src/Api.";
+        }
+    }
+
+    private async Task OnSearchChanged(ChangeEventArgs e)
+    {
+        searchTerm = e.Value?.ToString() ?? "";
+        await LoadDataAsync();
+    }
+
+    private async Task OnSortChanged(ChangeEventArgs e)
+    {
+        sortBy = e.Value?.ToString() ?? "sku";
+        await LoadDataAsync();
+    }
+
+    private async Task DeleteWithConfirmAsync(ProductModel item)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", $"Ви дійсно бажаєте видалити товар «{item.Name}» ({item.Sku})?");
+        if (!confirmed) return;
+
+        var result = await Api.DeleteAsync(item.Id);
+        if (result.Ok)
+        {
+            items?.Remove(item);
+        }
+        else
+        {
+            error = result.Message;
+        }
+    }
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+}
