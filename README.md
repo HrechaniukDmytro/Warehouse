@@ -103,7 +103,7 @@ dotnet test
 Усі ключі з конфігурації можна перевизначити через змінні середовища з префіксом `CROSSAPP_`. Вкладені двоеточки (`:`) замінюються на подвійне підкреслення (`__`).
 
 ### PowerShell (Windows)
-```powershell
+
 # Зміна середовища виконання
 $env:CROSSAPP_ENVIRONMENT = "Production"
 
@@ -147,9 +147,39 @@ curl -i http://localhost:5080/api/products?page=1&pageSize=2&search=цемент
 
 ## Лабораторна робота 11
 
-dotnet ef migrations list --project src/Infrastructure --startup-project src/Api
+git ls-files src/Infrastructure/Migrations
 del src\Api\data\app.db* 2>nul
 dotnet ef database update --project src/Infrastructure --startup-project src/Api
 
 dotnet run --project src/Api
 curl -i -X POST http://localhost:5080/api/products -H "Content-Type: application/json" -d "{\"sku\":\"A-100\",\"name\":\"Цемент М400\",\"unit\":\"мішок\",\"quantity\":40}"
+
+## Веб-клієнт Blazor (`src/Web`) — Лабораторна робота 12
+
+### Архітектура та режим рендерингу
+* **Обраний режим:** `Blazor Web App` із режимом інтерактивності **Interactive Server** (`@rendermode InteractiveServer`).
+* **Де виконується код:** Увесь C#-код компонентів та виклики типізованого `ProductsApiClient` виконуються на сервері `src/Web`. Оновлення DOM у браузері клієнта синхронізуються в реальному часі через постійне з'єднання **SignalR**.
+* **Ізоляція шарів:** Проєкт `src/Web` не посилається на `src/Infrastructure` і не має доступу до файлу БД SQLite `data/app.db`. Уся взаємодія відбувається виключно через HTTP API.
+* **CORS:** У `src/Api` налаштовано політику CORS (`Cors:WebOrigin`), яка дозволяє браузерним клієнтам (наприклад, при переході на Blazor WebAssembly) виконувати крос-доменні запити до API.
+
+---
+
+### Конфігурація та порти
+
+| Сервіс | Порт за замовчуванням | Ключі конфігурації (`appsettings.json`) |
+| :--- | :--- | :--- |
+| **Web API (`src/Api`)** | `http://localhost:5080` | `ConnectionStrings:AppDb` (`Data Source=data/app.db`), `Cors:WebOrigin` (`http://localhost:5090`) |
+| **Blazor Web (`src/Web`)** | `http://localhost:5090` | `Api:BaseUrl` (`http://localhost:5080`) |
+
+---
+
+### Запуск застосунку (два паралельні процеси)
+
+Для коректної роботи системи необхідно запустити сервер API та веб-клієнт у двох окремих терміналах із кореня рішення:
+
+1. **Термінал 1 — Запуск Web API (порт `5080`):**
+   ```bash
+   dotnet run --project src/Api --urls http://localhost:5080
+2. Термінал 2 — Запуск Blazor-клієнта (порт 5090):**  
+   '''bash
+   dotnet run --project src/Web --urls http://localhost:5090 
